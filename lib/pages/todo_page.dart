@@ -18,6 +18,9 @@ class _TodoPageState extends State<TodoPage> {
   final _inputController = TextEditingController();
   List<TodoTask> _tasks = [];
   bool _loaded = false;
+  final Set<String> _selectedIds = {};
+
+  bool get _isSelecting => _selectedIds.isNotEmpty;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -27,7 +30,11 @@ class _TodoPageState extends State<TodoPage> {
     setState(() { _tasks = _service.getAll(); _loaded = true; });
   }
 
-  void _refresh() => setState(() => _tasks = _service.getAll());
+  void _refresh() => setState(() {
+    _tasks = _service.getAll();
+    // 移除已被删除的选中项
+    _selectedIds.removeWhere((id) => !_tasks.any((t) => t.id == id));
+  });
 
   Future<void> _addTask(String title) async {
     if (title.trim().isEmpty) return;
@@ -37,6 +44,10 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   Future<void> _toggle(TodoTask task) async {
+    if (_isSelecting) {
+      _toggleSelection(task.id);
+      return;
+    }
     task.toggle();
     await _service.save(task);
     // 循环重复
@@ -46,6 +57,16 @@ class _TodoPageState extends State<TodoPage> {
       await _service.save(newTask);
     }
     _refresh();
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
   }
 
   DateTime? _nextRepeatDate(String type, DateTime? original) {
@@ -58,7 +79,32 @@ class _TodoPageState extends State<TodoPage> {
     }
   }
 
-  Future<void> _delete(TodoTask task) async { await _service.delete(task.id); _refresh(); }
+  Future<void> _deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定删除选中的 ${_selectedIds.length} 个待办吗？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除', style: TextStyle(color: AppTheme.deleteRed))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    for (final id in _selectedIds.toList()) {
+      await _service.delete(id);
+    }
+    _selectedIds.clear();
+    _refresh();
+  }
+
+  void _cancelSelection() => setState(() => _selectedIds.clear());
+
+  void _selectAll() => setState(() {
+    _selectedIds.addAll(_tasks.map((t) => t.id));
+  });
 
   Future<void> _startPomodoroForTask(TodoTask task) async {
     final pService = PomodoroService();
@@ -75,9 +121,23 @@ class _TodoPageState extends State<TodoPage> {
     final active = _tasks.where((t) => !t.isDone).toList();
     final done = _tasks.where((t) => t.isDone).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('✅ 今日待办')),
-      body: !_loaded ? const Center(child: CircularProgressIndicator())
+    return PopScope(
+      canPop: !_isSelecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isSelecting) _cancelSelection();
+      },
+      child: Scaffold(
+        appBar: _isSelecting
+            ? AppBar(
+                leading: IconButton(icon: const Icon(Icons.close), onPressed: _cancelSelection),
+                title: Text('已选 ${_selectedIds.length} 项'),
+                actions: [
+                  TextButton(onPressed: _selectAll, child: const Text('全选')),
+                  IconButton(icon: const Icon(Icons.delete_rounded, color: AppTheme.deleteRed), onPressed: _deleteSelected),
+                ],
+              )
+            : AppBar(title: const Text('✅ 今日待办')),
+        body: !_loaded ? const Center(child: CircularProgressIndicator())
           : Column(children: [
         Container(
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -107,19 +167,32 @@ class _TodoPageState extends State<TodoPage> {
               ]),
         ),
       ]),
+      ),
     );
   }
 
   Widget _buildTaskTile(TodoTask task) {
+    final selected = _selectedIds.contains(task.id);
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-      elevation: task.isDone ? 0.5 : 2,
+      elevation: selected ? 4 : (task.isDone ? 0.5 : 2),
+      color: selected ? AppTheme.primaryYellow.withValues(alpha: 0.15) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: selected ? const BorderSide(color: AppTheme.accentOrange, width: 1.5) : BorderSide.none,
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => _toggle(task),
+        onLongPress: () => _toggleSelection(task.id),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Row(children: [
+            // 多选模式显示checkbox，否则显示圆点
+            if (_isSelecting)
+              Padding(padding: const EdgeInsets.only(right: 8), child: Icon(
+                selected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                color: selected ? AppTheme.accentOrange : AppTheme.textLight, size: 26)),
             // 勾选框
             Container(width: 28, height: 28,
               decoration: BoxDecoration(shape: BoxShape.circle, color: task.isDone ? AppTheme.doneGreen : Colors.transparent,
