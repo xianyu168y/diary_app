@@ -1,45 +1,103 @@
 # ============================================================
-# 打 Tag 自动编译 APK → 上传 GitHub Release
-# 用法：git tag v1.2.3 && git push origin v1.2.3
-# 不向代码分支写入任何文件
+# CI/CD 语义化版本管理 + 自动编译 APK
 # ============================================================
-name: Build & Release APK
+# 用法：
+#   git commit -m "feat: 新功能"     → 升次版本 v1.0.0 → v1.1.0
+#   git commit -m "fix: 修bug"       → 升补丁版本 v1.0.0 → v1.0.1
+#   git commit -m "feat!: 破坏改动"   → 升主版本 v1.0.0 → v2.0.0
+#   git commit -m "chore: 杂务"      → 不触发 Release，仅更新代码
+#
+# 推送 main 分支触发 → semantic-release 自动计算版本号 →
+# 更新 pubspec.yaml / CHANGELOG.md → 创建 git tag →
+# 创建 GitHub Release → 编译 APK → 上传 APK 至 Release 附件
+# ============================================================
+name: CI/CD
 
 on:
   push:
-    tags:
-      - 'v*'       # v1.0.0 / v1.2.3-beta1 等语义化版本
+    branches: [main]
 
 permissions:
-  contents: write   # 允许创建 Release 并上传产物
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  build_release:
-    name: Build & Release
+  release:
+    name: Release
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.check.outputs.published }}
+      tag: ${{ steps.check.outputs.tag }}
 
     steps:
-      # 1. 拉取完整历史（供 release notes 生成使用）
+      # 1. 拉取完整 Git 历史（版本计算需要全部 commit）
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: false
 
-      # 2. 设置 Java 17（AGP 9.x + Gradle 9.x 所需）
+      # 2. 设置 Node.js 22
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 3. 安装 semantic-release 及插件
+      - name: Install
+        run: npm install
+
+      # 4. 语义化版本发布
+      #    根据 fead/fix/feat! 自动决定主/次/补丁版本
+      #    更新 pubspec.yaml → 更新 CHANGELOG.md → 创建 git tag →
+      #    创建 GitHub Release（不附加 APK，后续构建后上传）
+      #    chore/docs/refactor 等提交不触发 Release（exit 1，被 continue-on-error 吞掉）
+      - name: Semantic Release
+        id: semantic
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # 5. 检查是否发布了新版本
+      - name: Check Release
+        id: check
+        run: |
+          if [ "${{ steps.semantic.outcome }}" = "success" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            TAG=$(git tag --sort=-version:refname | head -1)
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ============ 以下仅在 semantic-release 发布新版本后执行 ============
+  build_apk:
+    name: Build & Upload APK
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      # 同步到 semantic-release 推送的版本提交
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          fetch-depth: 0
+
+      # 设置 Java 17（AGP 9.x + Gradle 9.x 所需）
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. 设置 Gradle 缓存，避免每次重新下载
+      # Gradle 缓存
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
 
-      # 4. 设置 Flutter 稳定版
+      # 设置 Flutter 稳定版
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -47,68 +105,31 @@ jobs:
           flutter-version: '3.44.x'
           cache: true
 
-      # 5. 安装依赖
+      # 安装 Flutter 依赖
       - name: Pub Get
         run: flutter pub get
 
-      # 6. 编译 Release APK（按 ABI 分包），失败自动重试 2 次
+      # 编译 Release APK（按 ABI 分包）
       - name: Build APK
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi
 
-      # 7. 重命名 APK（带上版本号，方便识别）
+      # 重命名 APK（带上版本号）
       - name: Rename APKs
         run: |
-          TAG=${GITHUB_REF_NAME#v}
+          TAG="${{ needs.release.outputs.tag }}"
+          VERSION="${TAG#v}"
           mkdir -p release-artifacts
           for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
             abi=$(echo "$apk" | sed -E 's/.*app-(.*)-release\.apk/\1/')
-            cp "$apk" "release-artifacts/diary-v${TAG}+${abi}.apk"
+            cp "$apk" "release-artifacts/diary-v${VERSION}+${abi}.apk"
           done
-          echo "APK 重命名完成："
           ls -lh release-artifacts/
 
-      # 8. 自动生成版本更新说明
-      - name: Generate Release Notes
-        id: release_notes
+      # 上传 APK 到 semantic-release 创建的 GitHub Release
+      - name: Upload APK to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
-
-          # 取前一个 tag 作为对比基线，没有则从第一个 commit 开始
-          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p') || true
-
-          if [ -n "$PREV_TAG" ]; then
-            LOG_RANGE="${PREV_TAG}..${TAG}"
-          else
-            LOG_RANGE="HEAD"
-          fi
-
-          # 生成 markdown 更新日志
-          NOTES=$(git log "$LOG_RANGE" --no-merges --pretty=format:"* %s" 2>/dev/null || echo "* 初始版本")
-
-          {
-            echo "log_range=${LOG_RANGE}"
-            echo "notes<<EOF_EOF_NOTES"
-            echo "$NOTES"
-            echo "EOF_EOF_NOTES"
-          } >> "$GITHUB_OUTPUT"
-
-      # 9. 创建 Release 并上传 APK
-      - name: Create Release & Upload
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: 日记 App v${{ github.ref_name }}
-          body: |
-            ## 📝 版本更新说明
-
-            ${{ steps.release_notes.outputs.notes }}
-
-            ---
-            > 🤖 由 CI 自动编译 · 仅更新 Release，不修改代码分支
-          files: release-artifacts/*.apk
-          draft: false
-          prerelease: false
+          TAG="${{ needs.release.outputs.tag }}"
+          echo "Uploading APK to release: $TAG"
+          gh release upload "$TAG" release-artifacts/*.apk

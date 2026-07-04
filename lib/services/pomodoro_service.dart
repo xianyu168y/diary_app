@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vibration/vibration.dart';
 import '../models/pomodoro_record.dart';
 import '../models/todo_task.dart';
 import '../services/todo_service.dart';
@@ -241,6 +242,16 @@ class PomodoroService extends ChangeNotifier {
 
   Future<void> _onComplete() async {
     _timer?.cancel();
+    // 倒计时结束震动3次：震500ms → 停300ms → 震500ms → 停300ms → 震500ms
+    try {
+      if (await Vibration.hasVibrator() == true) {
+        Vibration.vibrate(duration: 500);
+        await Future.delayed(const Duration(milliseconds: 300));
+        Vibration.vibrate(duration: 500);
+        await Future.delayed(const Duration(milliseconds: 300));
+        Vibration.vibrate(duration: 500);
+      }
+    } catch (_) {}
     _isRunning = false;
     _isPaused = false;
     _startTime = null;

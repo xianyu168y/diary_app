@@ -47,3 +47,7 @@ app.*.map.json
 # APK 安装包 — 全部由 CI 提交到 Release，不进入代码分支
 *.apk
 *.aab
+
+# semantic-release 依赖（仅 CI 使用，不提交）
+node_modules/
+package-lock.json
