@@ -37,11 +37,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. 设置 Node.js 22
+      # 2. 设置 Node.js 24
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
+          cache: 'npm'
 
       # 3. 安装 semantic-release 及插件
       - name: Install
