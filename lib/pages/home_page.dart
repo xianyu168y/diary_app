@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
 import '../services/theme_provider.dart';
 import 'diary_editor_page.dart';
@@ -38,6 +39,37 @@ const _quotes = [
   '未来的你，一定会感谢现在拼命的自己。',
   '所有的不甘，都是因为还心存梦想。',
   '与其焦虑未来，不如专注当下。',
+  '人生没有白走的路，每一步都算数。',
+  '梦想不会发光，发光的是追梦的你。',
+  '成功不是终点，失败也不是终结，唯有勇气才是永恒。',
+  '你只管努力，剩下的交给时间。',
+  '世上没有白费的努力，也没有碰巧的成功。',
+  '把努力当成一种习惯，而不是一时兴起。',
+  '吃别人吃不了的苦，忍别人忍不了的气，才能得到别人得不到的。',
+  '生活不会亏待每一个努力的人。',
+  '既然选择了远方，便只顾风雨兼程。',
+  '没有横空出世的运气，只有不为人知的努力。',
+  '熬过最苦的日子，才能做最酷的自己。',
+  '所有的努力都会在某个时刻开花结果。',
+  '千万别用年轻时的懒惰和放纵，换一生的后悔和卑微。',
+  '不到最后一刻，谁都不知道结局会怎样。',
+  '你今天的努力，是未来幸运的伏笔。',
+  '今天的不开心就到此为止，明天依然光芒万丈。',
+  '要相信，所有的不美好都是为了迎接美好。',
+  '当你觉得撑不下去的时候，看看周围，大家都在坚持。',
+  '累了就停下来歇歇，但别躺下不走了。',
+  '比你优秀的人还在努力，你有什么理由放弃。',
+  '不是因为看到希望才坚持，而是坚持了才看到希望。',
+  '每一个不曾起舞的日子，都是对生命的辜负。',
+  '世界上只有一种真正的英雄主义，那就是在认清生活的真相后依然热爱生活。',
+  '敢于背负梦想的人，才配拥有未来。',
+  '你的潜力远比你想象的要大得多。',
+  '别让将来的你，讨厌现在不努力的自己。',
+  '努力的意义，就是以后的日子里，放眼望去全是自己喜欢的人或事。',
+  '真正的高手，都是长期主义者。',
+  '种一棵树最好的时间是十年前，其次是现在。',
+  '耐心和持久胜过激烈和狂热。',
+  '所有的成就和美，都伴随着自律和节制。',
 ];
 
 class HomePage extends StatefulWidget {
@@ -50,18 +82,23 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
-  bool _quoteShown = false;
 
   @override
   void initState() {
     super.initState();
-    // 延迟弹出每日语录，避免干扰首帧渲染
-    Future.microtask(() {
-      if (!_quoteShown) {
-        _quoteShown = true;
-        _showDailyQuote(context);
-      }
-    });
+    // 延迟检查每日一语，避免干扰首帧渲染
+    Future.microtask(_checkAndShowDailyQuote);
+  }
+
+  Future<void> _checkAndShowDailyQuote() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().substring(0, 10); // yyyy-MM-dd
+    final lastShown = prefs.getString('daily_quote_date') ?? '';
+
+    if (lastShown == today) return; // 今天已弹过，跳过
+
+    await prefs.setString('daily_quote_date', today);
+    if (mounted) _showDailyQuote(context);
   }
 
   void _showDailyQuote(BuildContext context) {
@@ -83,7 +120,7 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              // 收藏到日记：跳转编辑器并填入语录
+              // 仅跳转空白日记编辑页，语录不会自动填充
               Navigator.push(context, MaterialPageRoute(builder: (_) => DiaryEditorPage()));
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentOrange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),

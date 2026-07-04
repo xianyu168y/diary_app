@@ -1,0 +1,106 @@
+# ============================================================
+# 打 Tag 自动编译 APK → 上传 GitHub Release
+# 用法：git tag v1.2.3 && git push origin v1.2.3
+# 不向代码分支写入任何文件
+# ============================================================
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'       # v1.0.0 / v1.2.3-beta1 等语义化版本
+
+permissions:
+  contents: write   # 允许创建 Release 并上传产物
+
+jobs:
+  build_release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 拉取完整历史（供 release notes 生成使用）
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # 跳过 LFS 以加快速度（本项目无 LFS）
+          lfs: false
+
+      # 2. 设置 Java 17（AGP 9.x + Gradle 9.x 所需）
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. 设置 Flutter 稳定版
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.44.x'
+          cache: true
+
+      # 4. 安装依赖
+      - name: Pub Get
+        run: flutter pub get
+
+      # 5. 编译 Release APK（按 ABI 分包）
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
+
+      # 6. 重命名 APK（带上版本号，方便识别）
+      - name: Rename APKs
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          mkdir -p release-artifacts
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi=$(echo "$apk" | sed -E 's/.*app-(.*)-release\.apk/\1/')
+            cp "$apk" "release-artifacts/diary-v${TAG}+${abi}.apk"
+          done
+          echo "✅ 重命名完成："
+          ls -lh release-artifacts/
+
+      # 7. 自动生成版本更新说明
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          # 取前一个 tag 作为对比基线，没有则从第一个 commit 开始
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p') || true
+
+          if [ -n "$PREV_TAG" ]; then
+            LOG_RANGE="${PREV_TAG}..${TAG}"
+          else
+            LOG_RANGE="HEAD"
+          fi
+
+          # 生成 markdown 更新日志
+          NOTES=$(git log "$LOG_RANGE" --no-merges --pretty=format:"* %s" 2>/dev/null || echo "* 初始版本")
+
+          # 写入环境变量供后续 step 使用
+          {
+            echo "log_range=${LOG_RANGE}"
+            echo "notes<<EOF_EOF_NOTES"
+            echo "$NOTES"
+            echo "EOF_EOF_NOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      # 8. 创建 Release 并上传 APK
+      - name: Create Release & Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 日记 App v${{ github.ref_name }}
+          body: |
+            ## 📝 版本更新说明
+
+            ${{ steps.release_notes.outputs.notes }}
+
+            ---
+            > 🤖 由 CI 自动编译 · 仅更新 Release，不修改代码分支
+          files: release-artifacts/*.apk
+          draft: false
+          prerelease: false

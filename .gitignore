@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# APK 安装包 — 全部由 CI 提交到 Release，不进入代码分支
+*.apk
+*.aab
