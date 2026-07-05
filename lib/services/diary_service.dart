@@ -1,38 +1,57 @@
 import 'dart:io';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/diary_entry.dart';
+import '../repositories/diary/diary_repository.dart';
+import '../repositories/diary/hive_diary_repository.dart';
 
+/// 日记业务层。
+///
+/// 职责：
+/// - 数据缓存 + 排序
+/// - 文件管理（图片复制、孤儿文件清理）
+/// - 写入委托给 [DiaryRepository]
+///
+/// 构造时可注入自定义 [repository] 用于测试，默认使用 [HiveDiaryRepository]。
 class DiaryService {
-  static const String _boxName = 'diary_box';
-  late Box _box;
+  final DiaryRepository _repository;
+  List<DiaryEntry> _entries = [];
 
+  DiaryService({DiaryRepository? repository})
+    : _repository = repository ?? HiveDiaryRepository();
+
+  /// 初始化存储层，加载全量数据到内存
   Future<void> init() async {
-    _box = await Hive.openBox(_boxName);
+    await _repository.init();
+    _entries = await _repository.getAll();
   }
 
-  List<DiaryEntry> getAll() {
-    final values = _box.values.cast<Map>().toList();
-    final entries = values.map((m) => DiaryEntry.fromMap(Map<String, dynamic>.from(m))).toList();
-    entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return entries;
-  }
+  /// 返回内存缓存中的日记（同步，按创建时间倒序）
+  List<DiaryEntry> getAll() => _entries;
 
+  /// 保存日记，同步更新缓存
   Future<void> save(DiaryEntry entry) async {
-    await _box.put(entry.id, entry.toMap());
+    await _repository.save(entry);
+    final index = _entries.indexWhere((e) => e.id == entry.id);
+    if (index >= 0) {
+      _entries[index] = entry;
+    } else {
+      _entries.add(entry);
+    }
+    _entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
+  /// 删除日记及关联的图片文件，同步更新缓存
   Future<void> delete(String id) async {
-    // 同时删除关联的图片文件
-    final raw = _box.get(id);
-    if (raw != null) {
-      final entry = DiaryEntry.fromMap(Map<String, dynamic>.from(raw));
+    // 删除关联的图片文件
+    final entry = _entries.cast<DiaryEntry?>().firstWhere((e) => e?.id == id, orElse: () => null);
+    if (entry != null) {
       for (final path in entry.images) {
         final file = File(path);
         if (await file.exists()) await file.delete();
       }
     }
-    await _box.delete(id);
+    await _repository.delete(id);
+    _entries.removeWhere((e) => e.id == id);
   }
 
   /// 将图片复制到应用内部存储，返回持久化路径

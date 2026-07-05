@@ -1,6 +1,6 @@
 import '../models/todo_task.dart';
-import '../repositories/todo_repository.dart';
-import '../repositories/hive_todo_repository.dart';
+import '../repositories/todo/todo_repository.dart';
+import '../repositories/todo/hive_todo_repository.dart';
 
 /// 待办业务层。
 ///
