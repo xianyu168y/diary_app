@@ -1,18 +1,33 @@
 import 'dart:convert';
 import '../../repositories/todo/todo_repository.dart';
+import '../../repositories/diary/diary_repository.dart';
+import '../../repositories/pomodoro/pomodoro_repository.dart';
+import '../../repositories/goal/goal_repository.dart';
 
 /// 数据导出服务。
 ///
-/// 只依赖 [TodoRepository] 抽象，完全不感知 Hive / 文件系统。
-/// 如果这里写得舒服 → Repository 抽对了。
+/// 统一导出全部业务数据，不感知底层存储实现。
 class ExportService {
   final TodoRepository todoRepository;
+  final DiaryRepository diaryRepository;
+  final PomodoroRepository pomodoroRepository;
+  final GoalRepository goalRepository;
 
-  ExportService({required this.todoRepository});
+  ExportService({
+    required this.todoRepository,
+    required this.diaryRepository,
+    required this.pomodoroRepository,
+    required this.goalRepository,
+  });
 
-  /// 将所有待办导出为 JSON 字符串
-  Future<String> exportTodos() async {
-    final todos = await todoRepository.getAll();
-    return jsonEncode(todos.map((t) => t.toMap()).toList());
+  /// 将所有数据导出为 JSON 字符串
+  Future<String> exportAll() async {
+    final data = {
+      'todos': (await todoRepository.getAll()).map((t) => t.toMap()).toList(),
+      'diaries': (await diaryRepository.getAll()).map((d) => d.toMap()).toList(),
+      'pomodoros': (await pomodoroRepository.getAll()).map((p) => p.toMap()).toList(),
+      'goals': (await goalRepository.getAll()).map((g) => g.toMap()).toList(),
+    };
+    return jsonEncode(data);
   }
 }

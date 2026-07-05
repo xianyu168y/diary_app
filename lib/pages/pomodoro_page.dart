@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
-import '../services/pomodoro_service.dart';
+import '../core/app_dependencies.dart';
 
 class PomodoroPage extends StatefulWidget {
   const PomodoroPage({super.key});
@@ -10,7 +10,7 @@ class PomodoroPage extends StatefulWidget {
 }
 
 class _PomodoroPageState extends State<PomodoroPage> with TickerProviderStateMixin {
-  final PomodoroService _service = PomodoroService();
+  final _service = appDependencies.pomodoroService;
   bool _initialized = false;
 
   @override

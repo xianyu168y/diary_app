@@ -10,16 +10,10 @@ import '../repositories/pomodoro/hive_pomodoro_repository.dart';
 import 'todo_service.dart';
 
 class PomodoroService extends ChangeNotifier {
-  /// 全局单例（注入默认 Hive 仓库）
-  static final PomodoroService instance = PomodoroService._internal(
-    HivePomodoroRepository(),
-  );
-
-  factory PomodoroService() => instance;
-
   final PomodoroRepository _repository;
 
-  PomodoroService._internal(this._repository);
+  PomodoroService({PomodoroRepository? repository})
+    : _repository = repository ?? HivePomodoroRepository();
 
   static const String _statsBox = 'pomodoro_stats';
   static const String _customKey = 'custom_minutes';

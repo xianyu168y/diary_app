@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/app_dependencies.dart';
 import '../models/focus_goal.dart';
-import '../services/pomodoro_service.dart';
 import '../features/stats/models/stats_data.dart';
 import '../features/stats/services/stats_service.dart';
 import '../features/stats/widgets/goal_section.dart';
@@ -19,7 +18,7 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  final _service = PomodoroService();
+  final _service = appDependencies.pomodoroService;
   final _goalService = appDependencies.goalService;
   final _diaryService = appDependencies.diaryService;
   final _todoService = appDependencies.todoService;

@@ -3,7 +3,6 @@ import 'package:uuid/uuid.dart';
 import '../app_theme.dart';
 import '../models/todo_task.dart';
 import '../core/app_dependencies.dart';
-import '../services/pomodoro_service.dart';
 import '../services/todo_service.dart';
 
 class TodoPage extends StatefulWidget {
@@ -108,8 +107,7 @@ class _TodoPageState extends State<TodoPage> {
   });
 
   Future<void> _startPomodoroForTask(TodoTask task) async {
-    final pService = PomodoroService();
-    await pService.init();
+    final pService = appDependencies.pomodoroService;
     await pService.bindToTodo(task.id, task.title);
     widget.onPomodoroStart?.call();
   }

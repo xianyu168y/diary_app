@@ -11,7 +11,6 @@ class FocusGoalService {
     : _repository = repository ?? HiveGoalRepository();
 
   Future<void> init() async {
-    await _repository.init();
     _goals = await _repository.getAll();
   }
 

@@ -26,9 +26,9 @@ class AppDependencies {
   // ── Services ──
   late final TodoService todoService;
   late final DiaryService diaryService;
+  late final PomodoroService pomodoroService;
   late final FocusGoalService goalService;
   late final ExportService exportService;
-  // PomodoroService 通过全局单例访问，不在此重复初始化
 
   /// 初始化所有 Repository 与 Service（并行加载，减少启动时间）
   Future<void> init() async {
@@ -46,21 +46,25 @@ class AppDependencies {
       goalRepo.init(),
     ]);
 
-    // 3. 创建业务服务（注入仓库）
+    // 3. 创建业务服务（注入仓库，Repository 不重复 init）
     todoService = TodoService(repository: todoRepo);
     diaryService = DiaryService(repository: diaryRepo);
+    pomodoroService = PomodoroService(repository: pomodoroRepo);
     goalService = FocusGoalService(repository: goalRepo);
-    exportService = ExportService(todoRepository: todoRepo);
+    exportService = ExportService(
+      todoRepository: todoRepo,
+      diaryRepository: diaryRepo,
+      pomodoroRepository: pomodoroRepo,
+      goalRepository: goalRepo,
+    );
 
     // 4. 并行加载服务数据
     await Future.wait([
       todoService.init(),
       diaryService.init(),
+      pomodoroService.init(),
       goalService.init(),
     ]);
-
-    // 5. 初始化番茄钟单例
-    await PomodoroService().init();
   }
 }
 
