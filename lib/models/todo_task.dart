@@ -36,6 +36,35 @@ class TodoTask {
 
   void addFocusMinutes(int minutes) { totalFocusMinutes += minutes; }
 
+  /// 不可变拷贝，用于 Repository 模式下的 state 更新
+  TodoTask copyWith({
+    String? title,
+    bool? isDone,
+    String? category,
+    int? totalFocusMinutes,
+    String? bindTomatoId,
+    int? priority,
+    DateTime? deadline,
+    String? repeatType,
+    int? subTaskTotal,
+    int? subTaskDone,
+    DateTime? completedAt,
+  }) => TodoTask(
+    id: id,
+    title: title ?? this.title,
+    isDone: isDone ?? this.isDone,
+    category: category ?? this.category,
+    totalFocusMinutes: totalFocusMinutes ?? this.totalFocusMinutes,
+    bindTomatoId: bindTomatoId ?? this.bindTomatoId,
+    priority: priority ?? this.priority,
+    deadline: deadline ?? this.deadline,
+    repeatType: repeatType ?? this.repeatType,
+    subTaskTotal: subTaskTotal ?? this.subTaskTotal,
+    subTaskDone: subTaskDone ?? this.subTaskDone,
+    createdAt: createdAt,
+    completedAt: completedAt ?? this.completedAt,
+  );
+
   double get progress => subTaskTotal > 0 ? subTaskDone / subTaskTotal : 1.0;
 
   Map<String, dynamic> toMap() => {
