@@ -48,6 +48,7 @@ app.*.map.json
 *.apk
 *.aab
 
-# semantic-release 依赖（仅 CI 使用，不提交）
+# semantic-release 依赖（仅 CI 使用，不提交 node_modules）
 node_modules/
-package-lock.json
+# package-lock.json 提交用于 CI 缓存加速，不被此文件排除
+!package-lock.json
