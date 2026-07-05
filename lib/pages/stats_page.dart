@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/diary_service.dart';
-import '../services/focus_goal_service.dart';
-import '../services/pomodoro_service.dart';
-import '../services/todo_service.dart';
+import '../core/app_dependencies.dart';
 import '../models/focus_goal.dart';
+import '../services/pomodoro_service.dart';
 import '../features/stats/models/stats_data.dart';
 import '../features/stats/services/stats_service.dart';
 import '../features/stats/widgets/goal_section.dart';
@@ -21,11 +19,11 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  final PomodoroService _service = PomodoroService();
-  final FocusGoalService _goalService = FocusGoalService();
-  final DiaryService _diaryService = DiaryService();
-  final TodoService _todoService = TodoService();
-  final StatsService _statsService = StatsService();
+  final _service = PomodoroService();
+  final _goalService = appDependencies.goalService;
+  final _diaryService = appDependencies.diaryService;
+  final _todoService = appDependencies.todoService;
+  final _statsService = StatsService();
   bool _initialized = false;
 
   late StatsData _stats;
@@ -67,7 +65,6 @@ class _StatsPageState extends State<StatsPage> {
     final totalHours = totalMinutes / 60.0;
     final totalCount = _service.records.length;
 
-    // 本月心情日记
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
     final monthEnd = DateTime(now.year, now.month + 1, 0);

@@ -1,104 +1,37 @@
 # ============================================================
-# CI/CD 语义化版本管理 + 自动编译 APK
+# 打 Tag → 自动编译 APK → 上传 GitHub Release
+# 用法：git tag v2.4.0 && git push origin v2.4.0
 # ============================================================
-# 用法：
-#   git commit -m "feat: 新功能"     → 升次版本 v1.0.0 → v1.1.0
-#   git commit -m "fix: 修bug"       → 升补丁版本 v1.0.0 → v1.0.1
-#   git commit -m "feat!: 破坏改动"   → 升主版本 v1.0.0 → v2.0.0
-#   git commit -m "chore: 杂务"      → 不触发 Release，仅更新代码
-#
-# 推送 main 分支触发 → semantic-release 自动计算版本号 →
-# 更新 pubspec.yaml / CHANGELOG.md → 创建 git tag →
-# 创建 GitHub Release → 编译 APK → 上传 APK 至 Release 附件
+# 不依赖 Node.js / semantic-release / npm
+# 版本号由 pubspec.yaml 管理，手动控制
 # ============================================================
-name: CI/CD
+name: Build & Release APK
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
-  release:
-    name: Release
+  build_release:
+    name: Build & Release
     runs-on: ubuntu-latest
-    outputs:
-      published: ${{ steps.check.outputs.published }}
-      tag: ${{ steps.check.outputs.tag }}
 
     steps:
-      # 1. 拉取完整 Git 历史（版本计算需要全部 commit）
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. 设置 Node.js 24
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      # 3. 安装 semantic-release 及插件
-      - name: Install
-        run: npm install
-
-      # 4. 语义化版本发布
-      #    根据 fead/fix/feat! 自动决定主/次/补丁版本
-      #    更新 pubspec.yaml → 更新 CHANGELOG.md → 创建 git tag →
-      #    创建 GitHub Release（不附加 APK，后续构建后上传）
-      #    chore/docs/refactor 等提交不触发 Release（exit 1，被 continue-on-error 吞掉）
-      - name: Semantic Release
-        id: semantic
-        run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      # 5. 检查是否发布了新版本
-      - name: Check Release
-        id: check
-        run: |
-          if [ "${{ steps.semantic.outcome }}" = "success" ]; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            TAG=$(git tag --sort=-version:refname | head -1)
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  # ============ 以下仅在 semantic-release 发布新版本后执行 ============
-  build_apk:
-    name: Build & Upload APK
-    needs: release
-    if: needs.release.outputs.published == 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      # 同步到 semantic-release 推送的版本提交
-      - name: Checkout release
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release.outputs.tag }}
-          fetch-depth: 0
-
-      # 设置 Java 17（AGP 9.x + Gradle 9.x 所需）
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Gradle 缓存
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      # 设置 Flutter 稳定版
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -106,31 +39,50 @@ jobs:
           flutter-version: '3.44.x'
           cache: true
 
-      # 安装 Flutter 依赖
       - name: Pub Get
         run: flutter pub get
 
-      # 编译 Release APK（按 ABI 分包）
       - name: Build APK
         run: flutter build apk --release --split-per-abi
 
-      # 重命名 APK（带上版本号）
       - name: Rename APKs
         run: |
-          TAG="${{ needs.release.outputs.tag }}"
-          VERSION="${TAG#v}"
+          TAG=${GITHUB_REF_NAME#v}
           mkdir -p release-artifacts
           for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
             abi=$(echo "$apk" | sed -E 's/.*app-(.*)-release\.apk/\1/')
-            cp "$apk" "release-artifacts/diary-v${VERSION}+${abi}.apk"
+            cp "$apk" "release-artifacts/diary-v${TAG}+${abi}.apk"
           done
           ls -lh release-artifacts/
 
-      # 上传 APK 到 semantic-release 创建的 GitHub Release
-      - name: Upload APK to Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate Release Notes
+        id: notes
         run: |
-          TAG="${{ needs.release.outputs.tag }}"
-          echo "Uploading APK to release: $TAG"
-          gh release upload "$TAG" release-artifacts/*.apk
+          TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p') || true
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG..$TAG" --no-merges --pretty=format:"* %s")
+          else
+            LOG=$(git log --no-merges --pretty=format:"* %s")
+          fi
+          {
+            echo "notes<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release & Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 日记 App v${{ github.ref_name }}
+          body: |
+            ## 📝 更新内容
+
+            ${{ steps.notes.outputs.notes }}
+
+            ---
+            > 🤖 由 CI 自动编译
+          files: release-artifacts/*.apk
+          draft: false
+          prerelease: false

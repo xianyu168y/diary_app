@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../app_theme.dart';
 import '../models/todo_task.dart';
+import '../core/app_dependencies.dart';
 import '../services/pomodoro_service.dart';
 import '../services/todo_service.dart';
 
@@ -14,7 +15,7 @@ class TodoPage extends StatefulWidget {
 }
 
 class _TodoPageState extends State<TodoPage> {
-  final TodoService _service = TodoService();
+  final TodoService _service = appDependencies.todoService;
   final _inputController = TextEditingController();
   List<TodoTask> _tasks = [];
   bool _loaded = false;

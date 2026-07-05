@@ -5,7 +5,7 @@ import 'diary_repository.dart';
 /// Hive 实现的日记仓库。
 class HiveDiaryRepository implements DiaryRepository {
   static const String _boxName = 'diary_box';
-  late final Box _box;
+  late Box _box;
 
   @override
   Future<void> init() async {

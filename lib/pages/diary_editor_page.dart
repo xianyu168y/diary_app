@@ -6,7 +6,7 @@ import '../app_theme.dart';
 import '../models/diary_category.dart';
 import '../models/diary_entry.dart';
 import '../services/diary_category_service.dart';
-import '../services/diary_service.dart';
+import '../core/app_dependencies.dart';
 
 /// 心情映射：key → (emoji, 中文名)
 const Map<String, Map<String, String>> _moods = {
@@ -28,7 +28,7 @@ class DiaryEditorPage extends StatefulWidget {
 class _DiaryEditorPageState extends State<DiaryEditorPage> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
-  final DiaryService _service = DiaryService();
+  final _service = appDependencies.diaryService;
   final DiaryCategoryService _catService = DiaryCategoryService();
   final ImagePicker _picker = ImagePicker();
   String? _selectedMood;

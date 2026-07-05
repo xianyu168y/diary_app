@@ -5,19 +5,25 @@ import 'package:uuid/uuid.dart';
 import 'package:vibration/vibration.dart';
 import '../models/pomodoro_record.dart';
 import '../models/todo_task.dart';
-import '../services/todo_service.dart';
+import '../repositories/pomodoro/pomodoro_repository.dart';
+import '../repositories/pomodoro/hive_pomodoro_repository.dart';
+import 'todo_service.dart';
 
 class PomodoroService extends ChangeNotifier {
-  /// 全局单例
-  static final PomodoroService instance = PomodoroService._();
-  PomodoroService._();
+  /// 全局单例（注入默认 Hive 仓库）
+  static final PomodoroService instance = PomodoroService._internal(
+    HivePomodoroRepository(),
+  );
 
   factory PomodoroService() => instance;
+
+  final PomodoroRepository _repository;
+
+  PomodoroService._internal(this._repository);
+
   static const String _statsBox = 'pomodoro_stats';
   static const String _customKey = 'custom_minutes';
-  static const String _recordsKey = 'records';
   static const String _durationsKey = 'custom_durations';
-  // 计时状态持久化键
   static const String _timerSecondsKey = 'timer_remaining';
   static const String _timerRunningKey = 'timer_running';
   static const String _timerPausedKey = 'timer_paused';
@@ -28,14 +34,13 @@ class PomodoroService extends ChangeNotifier {
   int _totalSeconds = 25 * 60;
   bool _isRunning = false;
   bool _isPaused = false;
-  bool _isInitialized = false; // 防止重复 init 覆盖
+  bool _isInitialized = false;
   int _todayCount = 0;
   int _customMinutes = 25;
   List<PomodoroRecord> _records = [];
   DateTime? _startTime;
   List<int> _customDurations = [];
 
-  // 绑定待办相关
   String? _boundTodoId;
   String? _boundTodoName;
   final TodoService _todoService = TodoService();
@@ -70,10 +75,11 @@ class PomodoroService extends ChangeNotifier {
   }
 
   Future<void> init() async {
-    final box = await Hive.openBox(_statsBox);
+    await _repository.init();
+    _records = await _repository.getAll();
+    final box = Hive.box(_statsBox);
     _todayCount = box.get(_todayKey, defaultValue: 0);
     _customMinutes = box.get(_customKey, defaultValue: 25);
-    _loadRecords(box);
     final raw = box.get(_durationsKey);
     if (raw is List && raw.isNotEmpty) {
       _customDurations = raw.cast<int>();
@@ -81,7 +87,6 @@ class PomodoroService extends ChangeNotifier {
       _customDurations = [15, 25, 30, 45, 60];
       await box.put(_durationsKey, _customDurations);
     }
-    // 首次初始化：从缓存恢复计时状态 or 设置默认时长
     if (!_isInitialized) {
       final restored = _restoreTimerState(box);
       if (!restored) {
@@ -99,17 +104,6 @@ class PomodoroService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _loadRecords(Box box) {
-    final raw = box.get(_recordsKey);
-    if (raw is List) {
-      _records = raw
-          .cast<Map>()
-          .map((m) => PomodoroRecord.fromMap(Map<String, dynamic>.from(m)))
-          .toList();
-    }
-  }
-
-  /// 从 Hive 恢复计时状态，返回 true 表示有缓存
   bool _restoreTimerState(Box box) {
     final savedRemaining = box.get(_timerSecondsKey);
     if (savedRemaining == null) return false;
@@ -117,14 +111,12 @@ class PomodoroService extends ChangeNotifier {
     _totalSeconds = box.get(_timerTotalKey, defaultValue: _totalSeconds) as int;
     _isRunning = box.get(_timerRunningKey, defaultValue: false) as bool;
     _isPaused = box.get(_timerPausedKey, defaultValue: false) as bool;
-    // 恢复运行中的计时器
     if (_isRunning && !_isPaused && _remainingSeconds > 0) {
       _startTimer();
     }
     return true;
   }
 
-  /// 持久化当前计时状态
   void _persistTimerState() {
     final box = Hive.box(_statsBox);
     box.put(_timerSecondsKey, _remainingSeconds);
@@ -151,7 +143,7 @@ class PomodoroService extends ChangeNotifier {
       _customMinutes = minutes;
       _totalSeconds = minutes * 60;
       _remainingSeconds = minutes * 60;
-      final box = await Hive.openBox(_statsBox);
+      final box = Hive.box(_statsBox);
       await box.put(_customKey, _customMinutes);
       notifyListeners();
     }
@@ -161,7 +153,7 @@ class PomodoroService extends ChangeNotifier {
     if (_customDurations.contains(minutes)) return;
     _customDurations.add(minutes);
     _customDurations.sort();
-    final box = await Hive.openBox(_statsBox);
+    final box = Hive.box(_statsBox);
     await box.put(_durationsKey, _customDurations);
     notifyListeners();
   }
@@ -173,25 +165,23 @@ class PomodoroService extends ChangeNotifier {
       _totalSeconds = _customDurations.first * 60;
       _remainingSeconds = _customDurations.first * 60;
       _customMinutes = _customDurations.first;
-      final box = await Hive.openBox(_statsBox);
+      final box = Hive.box(_statsBox);
       await box.put(_customKey, _customMinutes);
       await box.put(_durationsKey, _customDurations);
     } else {
-      final box = await Hive.openBox(_statsBox);
+      final box = Hive.box(_statsBox);
       await box.put(_durationsKey, _customDurations);
     }
     notifyListeners();
     return true;
   }
 
-  /// 绑定到待办任务
   Future<void> bindToTodo(String todoId, String todoName) async {
     _boundTodoId = todoId;
     _boundTodoName = todoName;
     notifyListeners();
   }
 
-  /// 解除绑定
   void unbindTodo() {
     _boundTodoId = null;
     _boundTodoName = null;
@@ -232,7 +222,7 @@ class PomodoroService extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainingSeconds > 0) {
         _remainingSeconds--;
-        _persistTimerState(); // 每秒持久化
+        _persistTimerState();
         notifyListeners();
       } else {
         _onComplete();
@@ -242,7 +232,6 @@ class PomodoroService extends ChangeNotifier {
 
   Future<void> _onComplete() async {
     _timer?.cancel();
-    // 倒计时结束震动3次：震500ms → 停300ms → 震500ms → 停300ms → 震500ms
     try {
       if (await Vibration.hasVibrator() == true) {
         Vibration.vibrate(duration: 500);
@@ -255,7 +244,6 @@ class PomodoroService extends ChangeNotifier {
     _isRunning = false;
     _isPaused = false;
     _startTime = null;
-    // 清除缓存计时状态
     final box = Hive.box(_statsBox);
     box.delete(_timerSecondsKey);
     box.delete(_timerRunningKey);
@@ -266,15 +254,15 @@ class PomodoroService extends ChangeNotifier {
     final record = PomodoroRecord(
       id: const Uuid().v4(), date: now,
       startTime: _startTime ?? now, endTime: now, minutes: minutes,
-      categoryId: _boundTodoId, // 复用 categoryId 字段存绑定待办 ID
+      categoryId: _boundTodoId,
     );
-    _records.add(record); _startTime = null;
+    _records.add(record);
+    _startTime = null;
 
-    await box.put(_recordsKey, _records.map((r) => r.toMap()).toList());
+    await _repository.save(record);
     _todayCount++;
     await box.put(_todayKey, _todayCount);
 
-    // 更新绑定待办的累计专注时长
     if (_boundTodoId != null) {
       final tasks = _todoService.getAll();
       final task = tasks.cast<TodoTask?>().firstWhere((t) => t?.id == _boundTodoId, orElse: () => null);

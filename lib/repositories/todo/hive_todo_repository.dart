@@ -5,7 +5,7 @@ import 'todo_repository.dart';
 /// Hive 实现的 Todo 仓库
 class HiveTodoRepository implements TodoRepository {
   static const String _boxName = 'todo_box';
-  late final Box _box;
+  late Box _box;
 
   @override
   Future<void> init() async {

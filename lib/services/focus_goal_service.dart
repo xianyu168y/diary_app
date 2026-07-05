@@ -1,26 +1,34 @@
-import 'package:hive/hive.dart';
 import '../models/focus_goal.dart';
+import '../repositories/goal/goal_repository.dart';
+import '../repositories/goal/hive_goal_repository.dart';
 
+/// 专注目标业务层。
 class FocusGoalService {
-  static const String _boxName = 'focus_goal_box';
-  late Box _box;
+  final GoalRepository _repository;
+  List<FocusGoal> _goals = [];
+
+  FocusGoalService({GoalRepository? repository})
+    : _repository = repository ?? HiveGoalRepository();
 
   Future<void> init() async {
-    _box = await Hive.openBox(_boxName);
+    await _repository.init();
+    _goals = await _repository.getAll();
   }
 
-  List<FocusGoal> getAll() {
-    final values = _box.values.cast<Map>().toList();
-    return values
-        .map((m) => FocusGoal.fromMap(Map<String, dynamic>.from(m)))
-        .toList();
-  }
+  List<FocusGoal> getAll() => _goals;
 
   Future<void> save(FocusGoal goal) async {
-    await _box.put(goal.id, goal.toMap());
+    await _repository.save(goal);
+    final index = _goals.indexWhere((g) => g.id == goal.id);
+    if (index >= 0) {
+      _goals[index] = goal;
+    } else {
+      _goals.add(goal);
+    }
   }
 
   Future<void> delete(String id) async {
-    await _box.delete(id);
+    await _repository.delete(id);
+    _goals.removeWhere((g) => g.id == id);
   }
 }

@@ -6,7 +6,7 @@ import '../app_theme.dart';
 import '../models/diary_category.dart';
 import '../models/diary_entry.dart';
 import '../services/diary_category_service.dart';
-import '../services/diary_service.dart';
+import '../core/app_dependencies.dart';
 import '../services/theme_provider.dart';
 import 'diary_editor_page.dart';
 
@@ -22,7 +22,7 @@ class DiaryPage extends StatefulWidget {
 }
 
 class _DiaryPageState extends State<DiaryPage> {
-  final DiaryService _service = DiaryService();
+  final _service = appDependencies.diaryService;
   final DiaryCategoryService _catService = DiaryCategoryService();
   List<DiaryEntry> _entries = [];
   List<DiaryCategory> _categories = [];
