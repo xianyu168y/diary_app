@@ -63,8 +63,6 @@ class _DiaryPageState extends State<DiaryPage> {
     return f;
   }
 
-  Future<void> _delete(DiaryEntry entry) async { await _service.delete(entry.id); _refresh(); }
-
   // ── 多选 ──
   void _exitSelectMode() { setState(() { _isSelectMode = false; _selectedIds.clear(); }); }
   void _enterSelectMode(String id) { setState(() { _isSelectMode = true; _selectedIds.add(id); }); }
@@ -142,21 +140,6 @@ class _DiaryPageState extends State<DiaryPage> {
         TextButton(onPressed: () async { Navigator.pop(ctx); for (final e in _entries.where((e) => e.diaryCategory == cat.id)) { e.diaryCategory = null; await _service.save(e); } await _catService.delete(cat.id); if (_selectedCategoryId == cat.id) _selectedCategoryId = null; _refresh(); }, style: TextButton.styleFrom(foregroundColor: AppTheme.deleteRed), child: const Text('删除')),
       ],
     ));
-  }
-
-  // ── 长按日记卡片菜单（单条） ──
-  void _showDiaryEntryMenu(DiaryEntry entry) {
-    showModalBottomSheet(context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(entry.title.isEmpty ? '无标题' : entry.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _ct(context, AppTheme.textBrown, const Color(0xFFF2EAD3))), maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ListTile(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), leading: const Icon(Icons.edit_rounded, color: AppTheme.accentOrange), title: const Text('编辑日记', style: TextStyle(fontSize: 15)), onTap: () async { Navigator.pop(ctx); await Navigator.push(context, MaterialPageRoute(builder: (_) => DiaryEditorPage(entry: entry))); _refresh(); }),
-          ListTile(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), leading: Icon(entry.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined, color: AppTheme.accentOrange), title: Text(entry.pinned ? '取消置顶' : '置顶', style: const TextStyle(fontSize: 15)), onTap: () async { Navigator.pop(ctx); entry.pinned = !entry.pinned; await _service.save(entry); _refresh(); }),
-          ListTile(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), leading: const Icon(Icons.delete_outline_rounded, color: AppTheme.deleteRed), title: const Text('删除日记', style: TextStyle(fontSize: 15)), onTap: () { Navigator.pop(ctx); showDialog(context: context, builder: (dCtx) => AlertDialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), title: const Text('删除日记', style: TextStyle(color: AppTheme.textBrown)), content: const Text('确定要删除这条日记吗？'), actions: [TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('取消', style: TextStyle(color: AppTheme.textLight))), TextButton(onPressed: () async { Navigator.pop(dCtx); await _delete(entry); }, style: TextButton.styleFrom(foregroundColor: AppTheme.deleteRed), child: const Text('删除'))])); }),
-        ]),
-      )),
-    );
   }
 
   // ── 分类管理弹窗 ──
