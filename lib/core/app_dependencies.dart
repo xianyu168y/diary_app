@@ -7,6 +7,7 @@ import '../services/diary_service.dart';
 import '../services/pomodoro_service.dart';
 import '../services/focus_goal_service.dart';
 import '../features/export/export_service.dart';
+import '../features/streak/services/streak_service.dart';
 
 /// 应用级依赖容器。
 ///
@@ -29,6 +30,7 @@ class AppDependencies {
   late final PomodoroService pomodoroService;
   late final FocusGoalService goalService;
   late final ExportService exportService;
+  late final StreakService streakService;
 
   /// 初始化所有 Repository 与 Service（并行加载，减少启动时间）
   Future<void> init() async {
@@ -56,6 +58,11 @@ class AppDependencies {
       diaryRepository: diaryRepo,
       pomodoroRepository: pomodoroRepo,
       goalRepository: goalRepo,
+    );
+    streakService = StreakService(
+      todoRepository: todoRepo,
+      diaryRepository: diaryRepo,
+      pomodoroRepository: pomodoroRepo,
     );
 
     // 4. 并行加载服务数据
