@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
             elevation: 0,
             items: [
               _navItem(Icons.menu_book_rounded, '日记'),
-              _navItem(Icons.check_circle_outline_rounded, '待办'),
+              _navItem(Icons.check_circle_rounded, '待办'),
               _navItem(Icons.timer_rounded, '番茄钟'),
               _navItem(Icons.bar_chart_rounded, '统计'),
             ],
@@ -183,6 +183,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   BottomNavigationBarItem _navItem(IconData icon, String label) {
-    return BottomNavigationBarItem(icon: Icon(icon), label: label);
+    return BottomNavigationBarItem(
+      icon: Semantics(
+        label: label,
+        child: Icon(icon),
+      ),
+      label: label,
+    );
   }
 }

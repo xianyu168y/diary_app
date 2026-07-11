@@ -131,15 +131,23 @@ class _DiaryPageState extends State<DiaryPage> {
     ));
   }
 
-  void _confirmDeleteCategory(DiaryCategory cat, int entryCount) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
+  Future<void> _confirmDeleteCategory(DiaryCategory cat, int entryCount) async {
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), title: const Text('删除分类', style: TextStyle(color: AppTheme.textBrown)),
       content: Text(entryCount > 0 ? '「${cat.name}」下有 $entryCount 篇日记，\n删除后日记将归为无分类。' : '确定要删除「${cat.name}」吗？'),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: AppTheme.textLight))),
-        TextButton(onPressed: () async { Navigator.pop(ctx); for (final e in _entries.where((e) => e.diaryCategory == cat.id)) { e.diaryCategory = null; await _service.save(e); } await _catService.delete(cat.id); if (_selectedCategoryId == cat.id) _selectedCategoryId = null; _refresh(); }, style: TextButton.styleFrom(foregroundColor: AppTheme.deleteRed), child: const Text('删除')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消', style: TextStyle(color: AppTheme.textLight))),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), style: TextButton.styleFrom(foregroundColor: AppTheme.deleteRed), child: const Text('删除')),
       ],
     ));
+    if (confirm != true) return;
+    for (final e in _entries.where((e) => e.diaryCategory == cat.id)) {
+      e.diaryCategory = null;
+      await _service.save(e);
+    }
+    await _catService.delete(cat.id);
+    if (_selectedCategoryId == cat.id) _selectedCategoryId = null;
+    _refresh();
   }
 
   // ── 分类管理弹窗 ──
@@ -158,7 +166,7 @@ class _DiaryPageState extends State<DiaryPage> {
             return ListTile(dense: true, title: Text(c.name, style: const TextStyle(fontSize: 14)), trailing: Row(mainAxisSize: MainAxisSize.min, children: [
               Text('$count篇', style: const TextStyle(fontSize: 11, color: AppTheme.textLight)),
               IconButton(icon: Icon(Icons.edit_rounded, size: 16), onPressed: () { _showRenameCategoryDialog(c); setDState(() {}); }),
-              IconButton(icon: Icon(Icons.delete_rounded, size: 16, color: count > 0 ? Colors.grey : AppTheme.deleteRed), onPressed: count > 0 ? null : () { _confirmDeleteCategory(c, count); setDState(() {}); }),
+              IconButton(icon: Icon(Icons.delete_rounded, size: 16, color: count > 0 ? Colors.grey : AppTheme.deleteRed), onPressed: count > 0 ? null : () async { await _confirmDeleteCategory(c, count); setDState(() {}); }),
             ]));
           }),
         ])),
@@ -286,14 +294,44 @@ class _DiaryPageState extends State<DiaryPage> {
         _buildCategoryBar(context, isDark, chipBorder),
         Expanded(child: filtered.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(_selectedCategoryId == null ? '📝' : '📂', style: const TextStyle(fontSize: 64)),
-                const SizedBox(height: 16), Text(_selectedCategoryId == null ? '还没有日记哦~\n点击右下角写一篇吧！' : '该分类下还没有日记~', textAlign: TextAlign.center, style: TextStyle(color: textSec, fontSize: 16, height: 1.5)),
+                // ── 空状态插画 ──
+                Container(
+                  width: 120, height: 120,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF2E2A26) : AppTheme.primaryYellow.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                  child: Center(
+                    child: Text(_selectedCategoryId == null ? '📝' : '📂', style: const TextStyle(fontSize: 48)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  _selectedCategoryId == null ? '还没有日记哦～' : '该分类下还没有日记～',
+                  style: TextStyle(color: textMain, fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _selectedCategoryId == null ? '记录生活的点滴，从第一篇开始' : '试试切换到其他分类看看',
+                  style: TextStyle(color: textSec, fontSize: 14),
+                ),
+                if (_selectedCategoryId == null) ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const DiaryEditorPage()));
+                      _refresh();
+                    },
+                    icon: const Icon(Icons.edit_rounded, size: 18),
+                    label: const Text('写第一篇日记'),
+                  ),
+                ],
               ]))
             : RefreshIndicator(color: AppTheme.accentOrange, onRefresh: _load,
                 child: ListView.builder(padding: EdgeInsets.fromLTRB(0, 4, 0, _isSelectMode ? 100 : 80), itemCount: filtered.length, itemBuilder: (_, i) {
                   final entry = filtered[i]; final isSelected = _selectedIds.contains(entry.id);
                   final dateStr = DateFormat('yyyy年MM月dd日 HH:mm').format(entry.createdAt);
-                  const moodEmojis = {'happy': '😊', 'plain': '😐', 'tired': '😴', 'sad': '😢', 'excited': '🤩'};
+                  const moodEmojis = {'happy': '😊', 'plain': '😐', 'tired': '😴', 'sad': '😢', 'excited': '😍'};
                   final moodEmoji = entry.mood != null ? moodEmojis[entry.mood] : null;
                   final catName = entry.diaryCategory != null ? _catService.findNameById(entry.diaryCategory) : null;
 
@@ -331,7 +369,7 @@ class _DiaryPageState extends State<DiaryPage> {
                           Expanded(child: Text(entry.title.isEmpty ? '无标题' : entry.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textMain), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           Text(dateStr, style: TextStyle(fontSize: 11, color: textSec)),
                         ]),
-                        if (entry.images.isNotEmpty) ...[const SizedBox(height: 8), SizedBox(height: 56, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: entry.images.length, separatorBuilder: (_, _) => const SizedBox(width: 4), itemBuilder: (_, i) => ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(entry.images[i]), width: 56, height: 56, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(width: 56, height: 56, color: AppTheme.bgColor, child: const Icon(Icons.broken_image_rounded, size: 20, color: AppTheme.textLight))))))],
+                        if (entry.images.isNotEmpty) ...[const SizedBox(height: 8), SizedBox(height: 56, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: entry.images.length, separatorBuilder: (_, _) => const SizedBox(width: 4), itemBuilder: (_, i) => ClipRRect(borderRadius: BorderRadius.circular(8), key: ValueKey('thumb_${entry.id}_$i'), child: Image.file(File(entry.images[i]), width: 56, height: 56, fit: BoxFit.cover, cacheWidth: 112, cacheHeight: 112, errorBuilder: (_, _, _) => Container(width: 56, height: 56, color: AppTheme.bgColor, child: const Icon(Icons.broken_image_rounded, size: 20, color: AppTheme.textLight))))))],
                         if (entry.content.isNotEmpty) ...[const SizedBox(height: 6), Text(entry.content, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: textSec, height: 1.3))],
                       ]))),
                   );

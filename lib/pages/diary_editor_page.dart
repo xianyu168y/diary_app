@@ -14,7 +14,7 @@ const Map<String, Map<String, String>> _moods = {
   'plain': {'emoji': '😐', 'label': '平淡'},
   'tired': {'emoji': '😴', 'label': '疲惫'},
   'sad':   {'emoji': '😢', 'label': '难过'},
-  'excited': {'emoji': '🤩', 'label': '兴奋'},
+  'excited': {'emoji': '😍', 'label': '兴奋'},
 };
 
 class DiaryEditorPage extends StatefulWidget {
@@ -281,7 +281,11 @@ class _DiaryEditorPageState extends State<DiaryEditorPage> {
               )),
               GestureDetector(
                 onTap: () => _addTag(_tagController.text),
-                child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppTheme.accentOrange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.add_rounded, size: 18, color: AppTheme.accentOrange)),
+                child: Container(
+                  padding: const EdgeInsets.all(10), // 44pt 触控目标
+                  decoration: BoxDecoration(color: AppTheme.accentOrange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.add_rounded, size: 20, color: AppTheme.accentOrange),
+                ),
               ),
             ]),
             // ── 标签 ──
@@ -455,6 +459,8 @@ class _DiaryEditorPageState extends State<DiaryEditorPage> {
               width: 72,
               height: 72,
               fit: BoxFit.cover,
+              cacheWidth: 144,
+              cacheHeight: 144,
               errorBuilder: (_, _, _) => Container(
                 width: 72, height: 72,
                 color: AppTheme.bgColor,
@@ -463,16 +469,16 @@ class _DiaryEditorPageState extends State<DiaryEditorPage> {
             ),
             // 右上角删除按钮
             Positioned(
-              top: 2, right: 2,
+              top: 0, right: 0,
               child: GestureDetector(
                 onTap: () => _confirmDeleteImage(index),
                 child: Container(
-                  padding: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(6), // 44pt 触控目标
                   decoration: BoxDecoration(
                     color: AppTheme.deleteRed.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 14),
+                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
                 ),
               ),
             ),

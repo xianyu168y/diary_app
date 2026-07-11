@@ -1,6 +1,18 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
+  // ═══════════════════════════════════════════════
+  //  Design Tokens — Color Palette
+  // ═══════════════════════════════════════════════
+
+  // ── 语义角色 ──
+  // surface  : 页面背景（浅色 #FFFDF5 / 深色 #1F1C18）
+  // card     : 卡片背景（浅色 #FFFFFF / 深色 #2E2A26）
+  // ink      : 主要文字（浅色 #5D4037 / 深色 #F2EAD3）
+  // ink-muted: 次要文字（浅色 #7D6B5A / 深色 #8F7F6E）
+  // accent   : 强调色（浅色 #FFA500 / 深色 #FFAA33）
+  // divider  : 分割线（浅色 #FFE4B5 / 深色 #3D3833）
+
   // ── 浅色配色 ──
   static const Color primaryYellow = Color(0xFFFFE4B5);
   static const Color primaryDark = Color(0xFFF5D89A);
@@ -8,17 +20,36 @@ class AppTheme {
   static const Color bgColor = Color(0xFFFFFDF5);
   static const Color cardColor = Color(0xFFFFFFFF);
   static const Color textBrown = Color(0xFF5D4037);
-  static const Color textLight = Color(0xFF9E8E7E);
+  static const Color textLight = Color(0xFF7D6B5A); // 调暗 ↑ 从 #9E8E7E 提升至 WCAG AA 4.5:1
   static const Color doneGreen = Color(0xFF81C784);
   static const Color deleteRed = Color(0xFFE57373);
 
   // ── 深色配色 ──
-  static const Color darkBg = Color(0xFF1F1C18);       // 柔和深米灰
-  static const Color darkCard = Color(0xFF2E2A26);      // 浅灰棕卡片
-  static const Color darkText = Color(0xFFF2EAD3);      // 浅米白主文字
-  static const Color darkTextLight = Color(0xFFA89F91); // 浅灰次要文字
-  static const Color darkDivider = Color(0xFF3D3833);   // 分割线
-  static const Color darkAccent = Color(0xFFFFAA33);    // 暖橙强调色
+  static const Color darkBg = Color(0xFF1F1C18);
+  static const Color darkCard = Color(0xFF2E2A26);
+  static const Color darkText = Color(0xFFF2EAD3);
+  static const Color darkTextLight = Color(0xFF8F7F6E); // 调暗 ↑ 从 #A89F91
+  static const Color darkDivider = Color(0xFF3D3833);
+  static const Color darkAccent = Color(0xFFFFAA33);
+
+  // ═══════════════════════════════════════════════
+  //  Spacing & Radius Tokens
+  // ═══════════════════════════════════════════════
+  static const double spaceXs = 4;
+  static const double spaceSm = 8;
+  static const double spaceMd = 12;
+  static const double spaceLg = 16;
+  static const double spaceXl = 20;
+  static const double space2xl = 28;
+  static const double space3xl = 40;
+
+  static const double radiusSm = 8;
+  static const double radiusMd = 12;
+  static const double radiusLg = 16;
+  static const double radiusXl = 20;
+  static const double radius2xl = 24;
+
+  static const double touchMin = 44.0; // 最小触摸目标 WCAG
 
   static ThemeData get theme => lightTheme;
 

@@ -19,6 +19,7 @@ class _TodoPageState extends State<TodoPage> {
   final TodoService _service = appDependencies.todoService;
   final CategoryService _catService = CategoryService();
   final _inputController = TextEditingController();
+  final _inputFocusNode = FocusNode();
   List<TodoTask> _tasks = [];
   List<Category> _categories = [];
   String? _selectedCategoryId; // null = 全部
@@ -130,7 +131,7 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   @override
-  void dispose() { _inputController.dispose(); super.dispose(); }
+  void dispose() { _inputController.dispose(); _inputFocusNode.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +164,7 @@ class _TodoPageState extends State<TodoPage> {
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
             boxShadow: [BoxShadow(color: AppTheme.primaryYellow.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 2))]),
           child: Row(children: [
-            Expanded(child: TextField(controller: _inputController,
+            Expanded(child: TextField(controller: _inputController, focusNode: _inputFocusNode,
               decoration: const InputDecoration(hintText: '新增任务...', border: InputBorder.none, contentPadding: EdgeInsets.fromLTRB(18, 14, 12, 14)),
               onSubmitted: _addTask)),
             Padding(padding: const EdgeInsets.only(right: 6), child: IconButton(
@@ -173,10 +174,35 @@ class _TodoPageState extends State<TodoPage> {
         ),
         Expanded(child: filtered.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('🎯', style: TextStyle(fontSize: 64)), const SizedBox(height: 12),
+                // ── 空状态插画 ──
+                Container(
+                  width: 120, height: 120,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryYellow.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                  child: const Center(
+                    child: Text('🎯', style: TextStyle(fontSize: 48)),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 Text(
-                  _selectedCategoryId == null ? '今天还没有计划~\n添加一个任务吧！' : '该分类下暂无任务~',
-                  textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textLight, fontSize: 16, height: 1.5)),
+                  _selectedCategoryId == null ? '今天还没有计划～' : '该分类下暂无任务～',
+                  style: const TextStyle(color: AppTheme.textBrown, fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _selectedCategoryId == null ? '添加一个任务，开始高效的一天' : '试试切换到其他分类看看',
+                  style: const TextStyle(color: AppTheme.textLight, fontSize: 14),
+                ),
+                if (_selectedCategoryId == null) ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => _inputFocusNode.requestFocus(),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('添加第一个任务'),
+                  ),
+                ],
               ]))
             : ListView(padding: const EdgeInsets.fromLTRB(0, 4, 0, 80), children: [
                 ...active.map(_buildTaskTile),

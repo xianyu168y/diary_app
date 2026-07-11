@@ -23,6 +23,8 @@ class _StatsPageState extends State<StatsPage> {
   final _diaryService = appDependencies.diaryService;
   final _todoService = appDependencies.todoService;
   final _statsService = StatsService();
+  final _statsNotifier = ValueNotifier<StatsData?>(null);
+  final _goalsNotifier = ValueNotifier<List<FocusGoal>>([]);
   bool _initialized = false;
 
   late StatsData _stats;
@@ -41,6 +43,8 @@ class _StatsPageState extends State<StatsPage> {
     await _todoService.init();
     _stats = _statsService.compute(_service.records);
     _goals = _goalService.getAll();
+    _statsNotifier.value = _stats;
+    _goalsNotifier.value = _goals;
     _service.addListener(_onChanged);
     setState(() => _initialized = true);
   }
@@ -48,13 +52,19 @@ class _StatsPageState extends State<StatsPage> {
   void _onChanged() {
     if (!mounted) return;
     _stats = _statsService.compute(_service.records);
-    setState(() {});
+    _statsNotifier.value = _stats;
+    _goalsNotifier.value = _goalService.getAll();
   }
 
   void _refreshGoals() => setState(() => _goals = _goalService.getAll());
 
   @override
-  void dispose() { _service.removeListener(_onChanged); super.dispose(); }
+  void dispose() {
+    _service.removeListener(_onChanged);
+    _statsNotifier.dispose();
+    _goalsNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

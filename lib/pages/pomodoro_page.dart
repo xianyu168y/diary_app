@@ -12,10 +12,15 @@ class PomodoroPage extends StatefulWidget {
 class _PomodoroPageState extends State<PomodoroPage> with TickerProviderStateMixin {
   final _service = appDependencies.pomodoroService;
   bool _initialized = false;
+  late final AnimationController _ringAnimCtrl;
 
   @override
   void initState() {
     super.initState();
+    _ringAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _init();
   }
 
@@ -26,12 +31,27 @@ class _PomodoroPageState extends State<PomodoroPage> with TickerProviderStateMix
   }
 
   void _onChanged() {
+    if (mounted) {
+      _ringAnimCtrl
+        ..removeListener(_onRingAnimTick)
+        ..addListener(_onRingAnimTick);
+      _ringAnimCtrl.animateTo(_service.progress,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOutCubic,
+      );
+      setState(() {});
+    }
+  }
+
+  void _onRingAnimTick() {
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _service.removeListener(_onChanged);
+    _ringAnimCtrl.removeListener(_onRingAnimTick);
+    _ringAnimCtrl.dispose();
     super.dispose();
   }
 
@@ -171,7 +191,7 @@ class _PomodoroPageState extends State<PomodoroPage> with TickerProviderStateMix
                     height: 240,
                     child: CustomPaint(
                       painter: _RingPainter(
-                        progress: _service.progress,
+                        progress: _ringAnimCtrl.value,
                         color: AppTheme.accentOrange,
                         strokeWidth: 14,
                       ),

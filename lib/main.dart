@@ -38,6 +38,8 @@ class DiaryApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: themeProvider.mode,
+        themeAnimationDuration: const Duration(milliseconds: 400),
+        themeAnimationCurve: Curves.easeInOutCubic,
         home: HomePage(themeProvider: themeProvider),
       ),
     );
