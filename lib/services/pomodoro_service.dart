@@ -108,17 +108,20 @@ class PomodoroService extends ChangeNotifier {
     _isRunning = box.get(_timerRunningKey, defaultValue: false) as bool;
     _isPaused = box.get(_timerPausedKey, defaultValue: false) as bool;
 
-    // 修复：如果 timer 曾在运行，根据持久化的开始时间计算真实已过时间
+    // 修复：如果 timer 正在运行（非暂停），根据持久化的开始时间计算真实已过时间
     // 覆盖两种场景：
     //   1. 息屏/切后台：Timer.periodic 被 OS 暂停，_lastTickTime 在 _startTimer 中处理
     //   2. 进程被 kill 后重启：_startTime 从 Hive 恢复，这里计算已过时间
-    if (_isRunning) {
+    // 注意：暂停状态下不计算已过时间，直接使用保存的 _remainingSeconds
+    // 注意：必须从 _totalSeconds 计算剩余，而不是从保存的 _remainingSeconds 里扣，
+    //       否则会重复扣除杀死前已运行的时间
+    if (_isRunning && !_isPaused) {
       final savedStartTime = box.get(_timerStartTimeKey);
       if (savedStartTime is int) {
         _startTime = DateTime.fromMillisecondsSinceEpoch(savedStartTime);
         final elapsed = DateTime.now().difference(_startTime!).inSeconds;
         if (elapsed > 0) {
-          _remainingSeconds = (_remainingSeconds - elapsed).clamp(0, _remainingSeconds);
+          _remainingSeconds = (_totalSeconds - elapsed).clamp(0, _totalSeconds);
           box.put(_timerSecondsKey, _remainingSeconds);
         }
       }
@@ -252,20 +255,25 @@ class PomodoroService extends ChangeNotifier {
     _lastTickTime = DateTime.now();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       final now = DateTime.now();
-      // 计算自上次 tick 以来的真实经过秒数
-      // 息屏/切后台时 Timer.periodic 被 OS 暂停，重新激活后一次 tick 可能跨越数分钟
-      final elapsed = _lastTickTime != null
-          ? now.difference(_lastTickTime!).inSeconds
-          : 1;
+      final elapsedMs = _lastTickTime != null
+          ? now.difference(_lastTickTime!).inMilliseconds
+          : 1000;
       _lastTickTime = now;
 
-      if (elapsed <= 0) return;
+      if (elapsedMs <= 0) return;
 
-      if (_remainingSeconds > 0) {
-        _remainingSeconds = (_remainingSeconds - elapsed).clamp(0, _remainingSeconds);
-        _persistTimerState();
-        notifyListeners();
+      // 正常情况每次 tick 约 1000ms，减 1 秒
+      // 但 DateTime 差值 inSeconds 有截断问题（995ms → 0），所以用 inMilliseconds 判断
+      // 息屏/切后台回来后一次 tick 可能跨越数分钟，elapsedMs >= 1500 时按真实经过扣减
+      if (elapsedMs >= 1500) {
+        final catchUp = elapsedMs ~/ 1000;
+        _remainingSeconds = (_remainingSeconds - catchUp).clamp(0, _remainingSeconds);
+      } else {
+        _remainingSeconds--;
       }
+
+      _persistTimerState();
+      notifyListeners();
       if (_remainingSeconds <= 0) {
         _onComplete();
       }
@@ -285,13 +293,13 @@ class PomodoroService extends ChangeNotifier {
     } catch (_) {}
     _isRunning = false;
     _isPaused = false;
-    _startTime = null;
     _lastTickTime = null;
     final box = Hive.box(_statsBox);
     box.delete(_timerSecondsKey);
     box.delete(_timerRunningKey);
     box.delete(_timerPausedKey);
     box.delete(_timerTotalKey);
+    box.delete(_timerStartTimeKey);
     final minutes = _totalSeconds ~/ 60;
     final now = DateTime.now();
     final record = PomodoroRecord(
@@ -299,8 +307,8 @@ class PomodoroService extends ChangeNotifier {
       startTime: _startTime ?? now, endTime: now, minutes: minutes,
       categoryId: _boundTodoId,
     );
-    _records.add(record);
     _startTime = null;
+    _records.add(record);
 
     await _repository.save(record);
     _todayCount++;
