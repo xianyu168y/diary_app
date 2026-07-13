@@ -1,0 +1,88 @@
+# ============================================================
+# 打 Tag → 自动编译 APK → 上传 GitHub Release
+# 用法：git tag v2.4.0 && git push origin v2.4.0
+# ============================================================
+# 不依赖 Node.js / semantic-release / npm
+# 版本号由 pubspec.yaml 管理，手动控制
+# ============================================================
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build_release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.44.x'
+          cache: true
+
+      - name: Pub Get
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
+
+      - name: Rename APKs
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          mkdir -p release-artifacts
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi=$(echo "$apk" | sed -E 's/.*app-(.*)-release\.apk/\1/')
+            cp "$apk" "release-artifacts/diary-v${TAG}+${abi}.apk"
+          done
+          ls -lh release-artifacts/
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p') || true
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG..$TAG" --no-merges --pretty=format:"* %s")
+          else
+            LOG=$(git log --no-merges --pretty=format:"* %s")
+          fi
+          {
+            echo "notes<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release & Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 日记 App v${{ github.ref_name }}
+          body: |
+            ## 📝 更新内容
+
+            ${{ steps.notes.outputs.notes }}
+
+            ---
+            > 🤖 由 CI 自动编译
+          files: release-artifacts/*.apk
+          draft: false
+          prerelease: false
